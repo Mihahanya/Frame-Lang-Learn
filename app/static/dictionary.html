@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Словарь</title>
+  <link rel="stylesheet" href="/theme.css?v=6">
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:760px;margin:auto;padding:1rem;color:#202124}
+    h1{font-size:1.55rem;margin:.3rem 0}.bar,.actions{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
+    section{border:1px solid #ddd;border-radius:12px;padding:.75rem 1rem;margin:.7rem 0}
+    select,input,button{font:inherit;padding:.45rem .6rem}button{cursor:pointer}
+    input{box-sizing:border-box;max-width:100%}.word{display:grid;grid-template-columns:1fr 1fr auto auto;gap:.45rem;align-items:center;padding:.45rem 0;border-bottom:1px solid #eee}
+    .muted{color:#666}.error{color:#b42318}.empty{padding:.7rem 0}
+    .nav{display:flex;gap:.5rem;margin-bottom:.7rem}.nav a{padding:.45rem .7rem;border:1px solid #d8def2;border-radius:8px;background:#f7f8ff;color:#202124;text-decoration:none}
+    @media(max-width:600px){.word{grid-template-columns:1fr auto}.word input{grid-column:1}.word .translation{grid-column:1}}
+  </style>
+</head>
+<body>
+  <div class="theme-bar"><label>Тема <select id="theme"><option value="default">Обычная</option><option value="soft">Серая</option><option value="dark">Тёмная</option><option value="creative">Фиолетовая</option><option value="neon">Неоновый сбой</option><option value="terminal">Терминал</option><option value="vaporwave">Вейпорвейв</option><option value="acid">Кислотный плакат</option><option value="cosmic">Космическая аномалия</option></select></label></div>
+  <nav class="nav"><a href="/">Главная</a><a href="/history">История</a></nav>
+  <h1>Словарь</h1>
+  <div class="bar"><label>Язык <select id="language"><option value="de">Deutsch</option><option value="el">Ελληνικά</option></select></label><a href="/dictionary/training"><button type="button">Тренироваться</button></a></div>
+  <section>
+    <h2>Добавить слово</h2>
+    <div class="bar"><input id="new-word" autocomplete="off" placeholder="Слово или выделенный фрагмент"><button id="add">Добавить и перевести</button></div>
+    <p id="status" class="muted"></p>
+  </section>
+  <section><div id="list"></div><p id="empty" class="empty muted" hidden>Словарь пока пуст.</p></section>
+  <script>
+    const $=id=>document.getElementById(id);
+    async function request(url,options={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...options});const d=await r.json();if(!r.ok)throw Error(d.detail||'Ошибка');return d}
+    async function load(){const items=await request(`/api/dictionary?language=${$('language').value}`);$('empty').hidden=items.length>0;$('list').innerHTML=items.map(w=>`<div class="word" data-id="${w.id}"><label><input class="selected" type="checkbox" autocomplete="off" ${w.selected?'checked':''}> ${escapeHtml(w.word)}</label><input class="translation" autocomplete="off" value="${escapeAttr(w.translation)}"><button class="save" type="button">Сохранить</button><button class="delete" type="button">Удалить</button></div>`).join('');document.querySelectorAll('.word').forEach(row=>{row.querySelector('.selected').onchange=()=>save(row);row.querySelector('.save').onclick=()=>save(row);row.querySelector('.delete').onclick=async()=>{try{await request(`/api/dictionary/${row.dataset.id}`,{method:'DELETE'});$('status').textContent='Слово удалено.';await load()}catch(e){$('status').textContent=e.message;$('status').className='error'}}})}
+    async function save(row){await request(`/api/dictionary/${row.dataset.id}`,{method:'PATCH',body:JSON.stringify({translation:row.querySelector('.translation').value,selected:row.querySelector('.selected').checked})});$('status').textContent='Сохранено.'}
+    function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+    function escapeAttr(s){return escapeHtml(s)}
+    $('language').onchange=load;$('add').onclick=async()=>{try{await request('/api/dictionary',{method:'POST',body:JSON.stringify({language:$('language').value,word:$('new-word').value})});$('new-word').value='';$('status').textContent='Добавлено.';load()}catch(e){$('status').textContent=e.message;$('status').className='error'}};load();
+  </script>
+  <script src="/theme.js?v=5"></script>
+</body>
+</html>

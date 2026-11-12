@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тренировка словаря</title>
+  <link rel="stylesheet" href="/theme.css?v=6">
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:600px;margin:auto;padding:.6rem .75rem;color:#202124}
+    h1{font-size:1.35rem;margin:.25rem 0 .5rem}.card{border:1px solid #ddd;border-radius:10px;padding:.65rem .8rem}.bar{display:flex;gap:.4rem;flex-wrap:wrap}label{display:grid;gap:.15rem}input,select,button{font:inherit;padding:.35rem .5rem}input{box-sizing:border-box;width:100%}button{cursor:pointer;margin-top:.35rem}.muted{color:#666}.success{color:#167447}.error{color:#b42318}
+  </style>
+</head>
+<body>
+  <div class="theme-bar"><label>Тема <select id="theme"><option value="default">Обычная</option><option value="soft">Серая</option><option value="dark">Тёмная</option><option value="creative">Фиолетовая</option><option value="neon">Неоновый сбой</option><option value="terminal">Терминал</option><option value="vaporwave">Вейпорвейв</option><option value="acid">Кислотный плакат</option><option value="cosmic">Космическая аномалия</option></select></label></div>
+  <p><a href="/dictionary">← Словарь</a></p><h1>Тренировка словаря</h1>
+  <section id="setup" class="card"><div class="bar"><label>Язык<select id="language"><option value="de">Deutsch</option><option value="el">Ελληνικά</option></select></label><label>Язык → русский<input id="to" autocomplete="off" type="number" min="0" max="50" value="5"></label><label>Русский → язык<input id="from" autocomplete="off" type="number" min="0" max="50" value="0"></label></div><button id="start">Начать тренировку</button><p id="status" class="error"></p></section>
+  <section id="exercise" class="card" hidden><p id="prompt" class="muted"></p><h2 id="word"></h2><input id="answer" autocomplete="off" placeholder="Введи перевод"><button id="check">Проверить</button><p id="feedback"></p><p id="correct" class="success"></p><button id="next" hidden>Следующее слово</button></section>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let session = new URLSearchParams(location.search).get('session');
+    let exercise = null;
+    async function request(url, options = {}) {
+      const response = await fetch(url, {headers: {'Content-Type': 'application/json'}, ...options});
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : {detail: await response.text()};
+      if (!response.ok) throw Error(data.detail || 'Сервер не вернул задание');
+      return data;
+    }
+    async function next() {
+      try {
+        exercise = await request(`/api/dictionary/sessions/${session}/exercise`);
+        $('setup').hidden = true;
+        $('exercise').hidden = false;
+        $('prompt').textContent = (exercise.is_review ? `Закрепление задания ${exercise.number}` : `Задание ${exercise.number} из ${exercise.total}`) + ` · ${exercise.prompt}`;
+        $('word').textContent = exercise.word;
+        $('answer').value = '';
+        $('feedback').textContent = '';
+        $('correct').textContent = '';
+        $('next').hidden = true;
+        $('answer').focus();
+      } catch (error) {
+        $('exercise').hidden = true;
+        $('setup').hidden = false;
+        $('status').textContent = error.message;
+      }
+    }
+    $('start').onclick = async () => {
+      try {
+        const data = await request('/api/dictionary/sessions', {method: 'POST', body: JSON.stringify({
+          language: $('language').value,
+          to_russian_count: Number($('to').value),
+          from_russian_count: Number($('from').value)
+        })});
+        session = data.id;
+        next();
+      } catch (error) { $('status').textContent = error.message; }
+    };
+    $('check').onclick = async () => {
+      try {
+        const data = await request(`/api/dictionary/sessions/${session}/attempt`, {
+          method: 'POST',
+          body: JSON.stringify({word_id: exercise.id, direction: exercise.direction, answer: $('answer').value})
+        });
+        $('feedback').textContent = data.message;
+        $('feedback').className = data.correct ? 'success' : 'error';
+        $('correct').textContent = data.correct ? '' : `Правильный ответ: ${data.answer}`;
+        $('next').hidden = false;
+      } catch (error) {
+        $('feedback').textContent = error.message;
+        $('feedback').className = 'error';
+      }
+    };
+    $('next').onclick = next;
+    $('answer').onkeydown = (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if ($('next').hidden) $('check').click(); else $('next').click();
+    };
+    if (session) next();
+  </script>
+  <script src="/theme.js?v=6"></script>
+</body>
+</html>

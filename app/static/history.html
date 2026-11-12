@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>История заданий</title>
+  <link rel="stylesheet" href="/theme.css?v=6">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 0 auto; padding: 1rem; }
+    .table-wrap { width: 100%; overflow-x: auto; } table { width: 100%; border-collapse: collapse; table-layout: fixed; } th, td { padding: .45rem; border-bottom: 1px solid #ddd; text-align: left; overflow-wrap: anywhere; font-size: .88rem; }
+    tr[data-href] { cursor: pointer; } tr[data-href]:hover { background: #f3f6ff; }
+    .ok { color: #167447; } .bad { color: #b42318; } .muted { color: #666; }
+    .nav { display: flex; gap: .5rem; margin-bottom: .8rem; }
+    .nav a { padding: .45rem .7rem; border: 1px solid #d8def2; border-radius: 8px; background: #f7f8ff; color: #202124; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="theme-bar"><label>Тема <select id="theme"><option value="default">Обычная</option><option value="soft">Серая</option><option value="dark">Тёмная</option><option value="creative">Фиолетовая</option><option value="neon">Неоновый сбой</option><option value="terminal">Терминал</option><option value="vaporwave">Вейпорвейв</option><option value="acid">Кислотный плакат</option><option value="cosmic">Космическая аномалия</option></select></label></div>
+  <nav class="nav"><a href="/">Главная</a><a href="/dictionary">Словарь</a><a href="/history-review">Закрепление из истории</a></nav>
+  <h1>История заданий</h1>
+  <p class="muted">Нажми на задание, чтобы пройти его отдельно до правильного ответа.</p>
+  <div class="table-wrap"><table class="history-table">
+    <thead><tr><th>Дата и время</th><th>Материал</th><th>Отрывок</th><th>Слова</th><th>Тип</th><th>Результат</th></tr></thead>
+    <tbody id="history"></tbody>
+  </table></div>
+  <style>
+    @media (max-width: 700px) {
+      body { padding: .6rem; }
+      .history-table th, .history-table td { padding: .3rem; font-size: .76rem; }
+      .history-table th:nth-child(1), .history-table td:nth-child(1) { display: none; }
+      .history-table th:nth-child(3), .history-table td:nth-child(3) { width: 20%; }
+      .history-table th:nth-child(4), .history-table td:nth-child(4) { width: 34%; }
+    }
+  </style>
+  <p id="empty" hidden>История пока пуста.</p>
+  <script>
+    const labels = {listening: 'Аудирование', translation: 'Перевод'};
+    const clock = (value) => value ? value.replace(/([,.]\d{1,3})$/, '') : '—';
+    async function load() {
+      const response = await fetch('/api/history');
+      const items = await response.json();
+      document.getElementById('empty').hidden = items.length > 0;
+      document.getElementById('history').innerHTML = items.map((item) => item.kind === 'dictionary' ? `
+        <tr data-href="/dictionary/training?session=${item.dictionary_session_id}">
+          <td>${new Date(item.completed_at.replace(' ', 'T') + 'Z').toLocaleString()}</td>
+          <td>Словарь (${item.language})</td><td>—</td><td>${item.text}</td>
+          <td>Словарная тренировка</td>
+          <td class="${item.is_correct ? 'ok' : 'bad'}">${item.is_correct ? 'Верно' : 'Есть ошибки'}</td>
+        </tr>` : `
+        <tr data-href="/training?exercise=${item.exercise_id}">
+          <td>${new Date(item.completed_at.replace(' ', 'T') + 'Z').toLocaleString()}</td>
+          <td>${item.source_title}</td>
+          <td>${clock(item.start_time)} - ${clock(item.end_time)}</td>
+          <td>${item.text}</td>
+          <td>${labels[item.kind] || item.kind}</td>
+          <td class="${item.is_correct ? 'ok' : 'bad'}">${item.is_correct ? 'Верно' : 'Есть ошибки'}</td>
+        </tr>`).join('');
+      document.querySelectorAll('tr[data-href]').forEach((row) => row.onclick = () => location.href = row.dataset.href);
+    }
+    load();
+  </script>
+  <script src="/theme.js?v=5"></script>
+</body>
+</html>

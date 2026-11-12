@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тренировка</title>
+  <link rel="stylesheet" href="/theme.css?v=6">
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: .5rem .75rem; color: #202124; }
+    h1 { margin: .2rem 0 .35rem; font-size: 1.4rem; }
+    h2 { margin: 0 0 .25rem; font-size: 1.05rem; }
+    section { border: 1px solid #ddd; border-radius: 10px; padding: .55rem .75rem; }
+    button, input { font: inherit; padding: .3rem .5rem; margin-top: .25rem; }
+    button { cursor: pointer; }
+    input { width: 100%; min-height: 2.2rem; box-sizing: border-box; }
+    #words { display: flex; gap: .25rem; flex-wrap: wrap; margin: .35rem 0; }
+    .word { background: #edf2ff; border: 1px solid #b9c7ff; border-radius: 7px; cursor: pointer; }
+    #answer-words { display: flex; gap: .25rem; flex-wrap: wrap; min-height: 1.5rem; }
+    #answer-words .word { background: #e8f5e9; border-color: #9ccc9c; }
+    .muted { color: #666; } .success { color: #167447; } .error { color: #b42318; }
+    video { display: block; max-height: 34vh; margin: .3rem 0 0; border-radius: 7px; background: #111; }
+    .video-controls { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .video-controls button { margin-top: .4rem; }
+    #show-subtitles:not([hidden]) { display: block; margin-top: .25rem; }
+    #translation-phrase { margin: .3rem 0; padding: .3rem .45rem; background: #f6f7f91f; border-radius: 6px; }
+    #available-label, #answer-label { margin: .3rem 0 .1rem; }
+    #feedback { margin: .3rem 0; }
+    .result { margin: .4rem 0; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-soft); }
+  </style>
+</head>
+<body>
+  <div class="theme-bar"><label>Тема <select id="theme"><option value="default">Обычная</option><option value="soft">Серая</option><option value="dark">Тёмная</option><option value="creative">Фиолетовая</option><option value="neon">Неоновый сбой</option><option value="terminal">Терминал</option><option value="vaporwave">Вейпорвейв</option><option value="acid">Кислотный плакат</option><option value="cosmic">Космическая аномалия</option></select></label></div>
+  <p><a href="/">← Главная</a></p>
+  <h1>Тренировка</h1>
+  <p id="progress" class="muted">Загрузка задания…</p>
+  <section id="exercise" hidden>
+    <h2 id="prompt"></h2>
+    <p id="source" class="muted"></p>
+    <video id="video" width="100%" hidden></video>
+    <div class="video-controls">
+      <button id="replay" hidden>Повторить фрагмент</button>
+      <button id="slow" hidden>Скорость: 1x</button>
+    </div>
+    <button id="show-subtitles" hidden>Показать субтитры</button>
+    <p id="translation-phrase" hidden></p>
+    <p id="available-label" class="muted">Доступные слова</p>
+    <div id="words"></div>
+    <p id="answer-label" class="muted">Твой ответ (нажми слово, чтобы убрать его)</p>
+    <div id="answer-words"></div>
+    <input id="answer" autocomplete="off" placeholder="Или введи ответ вручную">
+    <button id="check">Проверить</button>
+    <p id="feedback"></p>
+    <p id="original" class="success" hidden></p>
+    <p id="translation" class="success" hidden></p>
+    <button id="add-selection" hidden>Добавить выделенное слово в словарь</button>
+    <button id="next" hidden>Следующее задание</button>
+  </section>
+  <p id="done" hidden>Тренировка завершена. <a href="/">Настроить ещё одну</a></p>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const sessionId = params.get('session');
+    const standaloneExerciseId = params.get('exercise');
+    const standalone = Boolean(standaloneExerciseId);
+    let exercise = null, phraseId = null, slow = false, endTime = 0, videoLoadToken = 0;
+    const seenPhraseIds = new Set();
+    const $ = (id) => document.getElementById(id);
+    async function request(url, options = {}) {
+      const response = await fetch(url, {headers: {'Content-Type': 'application/json'}, ...options});
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await response.json()
+        : {detail: await response.text()};
+      if (!response.ok) throw new Error(data.detail || 'Сервер не вернул задание');
+      return data;
+    }
+    function seconds(value) {
+      const [h, m, s] = value.trim().replace(',', '.').split(':').map(Number);
+      if (![h, m, s].every(Number.isFinite)) throw new Error(`Некорректный таймкод: ${value}`);
+      return h * 3600 + m * 60 + s;
+    }
+    async function load() {
+      if (standalone) {
+        exercise = await request(`/api/exercises/${standaloneExerciseId}`);
+      } else {
+        const suffix = seenPhraseIds.size
+        ? `?${[...seenPhraseIds].map((id) => `exclude_phrase_ids=${id}`).join('&')}`
+        : '';
+        try { exercise = await request(`/api/sessions/${sessionId}/exercise${suffix}`); }
+        catch (error) {
+          $('exercise').hidden = true;
+          $('done').textContent = error.message;
+          $('done').hidden = false;
+          return;
+        }
+      }
+      phraseId = exercise.phrase_id;
+      seenPhraseIds.add(phraseId);
+      $('exercise').hidden = false; $('done').hidden = true;
+      $('prompt').textContent = exercise.prompt;
+      $('progress').textContent = exercise.is_review
+        ? `Закрепление задания ${exercise.number}`
+        : `Задание ${exercise.number} из ${exercise.total}`;
+      $('source').textContent = `${exercise.source_title} · ${exercise.time}`;
+      $('translation-phrase').textContent = exercise.kind === 'translation'
+        ? `Субтитры: ${exercise.phrase_text}` : '';
+      $('translation-phrase').hidden = true;
+      $('show-subtitles').hidden = exercise.kind !== 'translation';
+      $('show-subtitles').textContent = 'Показать субтитры';
+      $('answer').value = ''; $('feedback').textContent = ''; $('original').hidden = true;
+      $('translation').hidden = true; $('translation').textContent = '';
+      $('add-selection').hidden = true; $('add-selection').textContent = 'Добавить выделенное слово в словарь';
+      $('next').hidden = true; $('words').innerHTML = '';
+      const video = $('video');
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      endTime = 0;
+      const listening = exercise.kind === 'listening';
+      $('available-label').hidden = false;
+      $('answer-label').hidden = false;
+      $('video').hidden = !exercise.video_path; $('replay').hidden = !exercise.video_path;
+      $('slow').hidden = !exercise.video_path;
+      {
+        const sourceWords = listening ? exercise.words : exercise.translation_words;
+        const available = sourceWords.map((word, index) => ({word, index}));
+        const selected = [];
+        function renderWords() {
+          $('words').innerHTML = ''; $('answer-words').innerHTML = '';
+          available.forEach((item) => {
+            const button = document.createElement('button'); button.className = 'word';
+            button.textContent = item.word;
+            button.onclick = () => {
+              available.splice(available.indexOf(item), 1); selected.push(item);
+              $('answer').value = selected.map((entry) => entry.word).join(' ');
+              renderWords();
+            };
+            $('words').appendChild(button);
+          });
+          selected.forEach((item) => {
+            const button = document.createElement('button'); button.className = 'word';
+            button.textContent = item.word;
+            button.title = 'Убрать слово';
+            button.onclick = () => {
+              selected.splice(selected.indexOf(item), 1); available.push(item);
+              $('answer').value = selected.map((entry) => entry.word).join(' ');
+              renderWords();
+            };
+            $('answer-words').appendChild(button);
+          });
+        }
+        renderWords();
+      }
+      if (exercise.video_path) {
+        const loadToken = ++videoLoadToken;
+        const [start, end] = exercise.time.split(' - ');
+        const startTime = seconds(start);
+        endTime = seconds(end) + .3;
+        video.src = exercise.video_path;
+        video.onloadedmetadata = () => {
+          if (loadToken !== videoLoadToken) return;
+          video.currentTime = startTime;
+          video.playbackRate = slow ? .7 : 1;
+          video.play().catch(() => {});
+        };
+        video.load();
+      }
+    }
+    $('check').onclick = async () => {
+      const result = await request(`/api/exercises/${exercise.id}/attempt`, {
+        method: 'POST', body: JSON.stringify({answer: $('answer').value})
+      });
+      $('feedback').textContent = result.message;
+      $('feedback').className = result.correct === false ? 'error' : 'success';
+      $('original').textContent = `Оригинал: ${result.original || result.answer}`; $('original').className = 'result success'; $('original').hidden = false;
+      $('translation').textContent = `Перевод: ${exercise.translation}`;
+      $('translation').className = 'result success'; $('translation').hidden = false;
+      $('add-selection').hidden = false;
+      $('next').hidden = standalone;
+      if (standalone && result.correct === true) {
+        $('done').textContent = 'Задание выполнено правильно.';
+        $('done').hidden = false;
+      }
+    };
+    $('next').onclick = load;
+    $('add-selection').onclick = async () => {
+      const selected = window.getSelection().toString().trim();
+      if (!selected) return;
+      try {
+        await request('/api/dictionary', {
+          method: 'POST',
+          body: JSON.stringify({language: exercise.language, word: selected})
+        });
+        $('add-selection').textContent = 'Добавлено в словарь';
+        window.setTimeout(() => {
+          $('add-selection').textContent = 'Добавить выделенное слово в словарь';
+        }, 2500);
+      } catch (error) {
+        $('feedback').textContent = error.message;
+        $('feedback').className = 'error';
+      }
+    };
+    $('video').addEventListener('click', () => {
+      if ($('video').paused) $('video').play().catch(() => {});
+      else $('video').pause();
+    });
+    $('video').addEventListener('timeupdate', () => {
+      if (endTime && $('video').currentTime >= endTime) {
+        $('video').pause();
+        const [start] = exercise.time.split(' - ');
+        $('video').currentTime = seconds(start);
+      }
+    });
+    $('video').addEventListener('ended', () => {
+      if (!exercise) return;
+      const [start] = exercise.time.split(' - ');
+      $('video').currentTime = seconds(start);
+    });
+    $('replay').onclick = () => {
+      if (!exercise || !$('video').src) return;
+      const [start] = exercise.time.split(' - ');
+      endTime = seconds(exercise.time.split(' - ')[1]) + .3;
+      $('video').currentTime = seconds(start);
+      $('video').playbackRate = slow ? .7 : 1;
+      $('video').play().catch(() => {});
+    };
+    $('slow').onclick = () => { slow = !slow; $('video').playbackRate = slow ? .7 : 1; $('slow').textContent = `Скорость: ${slow ? .7 : 1}x`; };
+    $('show-subtitles').onclick = () => {
+      const visible = !$('translation-phrase').hidden;
+      $('translation-phrase').hidden = visible;
+      $('show-subtitles').textContent = visible ? 'Показать субтитры' : 'Скрыть субтитры';
+    };
+    load().catch((error) => { $('done').textContent = error.message; $('done').hidden = false; });
+  </script>
+  <script src="/theme.js?v=5"></script>
+</body>
+</html>

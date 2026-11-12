@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_PATH: /data/learner.db
+      MEDIA_DIR: /media
+      TRANSLATION_URL: https://api.mymemory.translated.net/get
+      LLM_TOKEN: ${LLM_TOKEN:-}
+      LLM_MODEL: ${LLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      LLM_FALLBACK_MODELS: ${LLM_FALLBACK_MODELS:-}
+      LLM_API_URL: ${LLM_API_URL:-https://router.huggingface.co/v1/chat/completions}
+    volumes:
+      - learner_data:/data
+      - ./media:/media
+
+volumes:
+  learner_data:

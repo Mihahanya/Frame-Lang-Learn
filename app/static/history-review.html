@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Закрепление из истории</title>
+  <link rel="stylesheet" href="/theme.css?v=6">
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:760px;margin:auto;padding:.5rem .75rem}
+    h1{margin:.2rem 0 .35rem;font-size:1.4rem}h2{margin:0 0 .25rem;font-size:1.05rem}
+    .card{border:1px solid #ddd;border-radius:10px;padding:.55rem .75rem;margin:.7rem 0}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.row label{display:grid;gap:.25rem}
+    input,select,button{font:inherit;padding:.3rem .5rem}button{cursor:pointer;margin-top:.35rem}
+    #words,#answer-words{display:flex;gap:.25rem;flex-wrap:wrap;margin:.35rem 0}
+    .word{border-radius:7px;cursor:pointer}.answer-word{background:#e8f5e9}
+    video{display:block;max-height:34vh;margin:.3rem 0;border-radius:7px;background:#111}
+    .video-controls{display:flex;gap:.4rem;flex-wrap:wrap}
+    .result{margin:.4rem 0;padding:.45rem .6rem;border:1px solid var(--line);border-radius:7px;background:var(--surface-soft)}
+    .muted{color:#667085}.error{color:#b42318}.success{color:#167447}
+    @media(max-width:520px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="theme-bar"><label>Тема <select id="theme"><option value="default">Обычная</option><option value="soft">Серая</option><option value="dark">Тёмная</option><option value="creative">Фиолетовая</option><option value="neon">Неоновый сбой</option><option value="terminal">Терминал</option><option value="vaporwave">Вейпорвейв</option><option value="acid">Кислотный плакат</option><option value="cosmic">Космическая аномалия</option></select></label></div>
+  <p><a href="/history">← История</a></p>
+  <h1>Закрепление из истории</h1>
+  <section id="setup" class="card">
+    <p class="muted">Выбери последние попытки, среди которых искать ошибки, и количество случайных упражнений.</p>
+    <div class="row">
+      <label>Язык<select id="language"><option value="de">Deutsch</option><option value="el">Ελληνικά</option></select></label>
+      <label>Смотреть неудачи за<select id="limit"><option value="10">10 попыток</option><option value="20">20 попыток</option><option value="30">30 попыток</option><option value="50">50 попыток</option><option value="75">75 попыток</option><option value="100">100 попыток</option><option value="1000000">Всю историю</option></select></label>
+    </div>
+    <label>Упражнений в закреплении<input id="count" autocomplete="off" type="number" min="1" max="100" value="5"></label>
+    <button id="start">Начать закрепление</button><p id="status" class="error"></p>
+  </section>
+  <section id="exercise" class="card" hidden>
+    <p id="progress" class="muted"></p><h2 id="prompt"></h2><p id="source" class="muted"></p>
+    <video id="video" width="100%" hidden></video>
+    <div class="video-controls"><button id="replay" hidden>Повторить фрагмент</button><button id="slow" hidden>Скорость: 1x</button></div>
+    <p id="available-label" class="muted">Доступные слова</p><div id="words"></div>
+    <p class="muted">Твой ответ</p><div id="answer-words"></div>
+    <input id="answer" autocomplete="off" placeholder="Введи или собери ответ">
+    <button id="check">Проверить</button>
+    <p id="feedback"></p><p id="original" class="result" hidden></p><p id="translation" class="result" hidden></p>
+    <button id="add-selection" hidden>Добавить выделенное слово в словарь</button>
+    <button id="next" hidden>Следующее задание</button>
+  </section>
+  <script>
+    const $=id=>document.getElementById(id);let session=null,exercise=null,slow=false,endTime=0;
+    async function request(url,options={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...options});const type=r.headers.get('content-type')||'';const d=type.includes('application/json')?await r.json():{detail:await r.text()};if(!r.ok)throw Error(d.detail||'Ошибка запроса');return d}
+    function seconds(value){const [h,m,s]=value.trim().replace(',','.').split(':').map(Number);return h*3600+m*60+s}
+    async function next(){try{exercise=await request(`/api/history-reviews/${session}/exercise`);$('setup').hidden=true;$('exercise').hidden=false;$('progress').textContent=`Закрепление задания ${exercise.number} из ${exercise.total}`;$('prompt').textContent=exercise.prompt;$('source').textContent=`${exercise.source_title} · ${exercise.time}`;$('answer').value='';$('feedback').textContent='';$('original').hidden=true;$('translation').hidden=true;$('add-selection').hidden=true;$('next').hidden=true;$('answer-words').innerHTML='';$('words').innerHTML='';
+      const video=$('video');video.pause();video.removeAttribute('src');video.load();$('video').hidden=!exercise.video_path;$('replay').hidden=!exercise.video_path;$('slow').hidden=!exercise.video_path;
+      if(exercise.video_path){const [start,end]=exercise.time.split(' - ');endTime=seconds(end)+.3;video.src=exercise.video_path;video.onloadedmetadata=()=>{video.currentTime=seconds(start);video.playbackRate=slow?.7:1;video.play().catch(()=>{})};video.load()}
+      const available=exercise.kind==='listening'?exercise.words:exercise.translation_words;const selected=[];function renderWords(){ $('words').innerHTML='';$('answer-words').innerHTML='';available.forEach(word=>{const b=document.createElement('button');b.className='word';b.textContent=word;b.onclick=()=>{available.splice(available.indexOf(word),1);selected.push(word);renderWords()};$('words').appendChild(b)});selected.forEach(word=>{const b=document.createElement('button');b.className='word answer-word';b.textContent=word;b.onclick=()=>{selected.splice(selected.indexOf(word),1);available.push(word);renderWords()};$('answer-words').appendChild(b)});$('answer').value=selected.join(' ')} renderWords();
+    }catch(e){$('exercise').hidden=true;$('setup').hidden=false;$('status').textContent=e.message}}
+    $('start').onclick=async()=>{try{const d=await request('/api/history-reviews',{method:'POST',body:JSON.stringify({language:$('language').value,history_limit:+$('limit').value,exercise_count:+$('count').value})});session=d.id;next()}catch(e){$('status').textContent=e.message}};
+    $('check').onclick=async()=>{try{const d=await request(`/api/history-reviews/${session}/attempt?exercise_id=${exercise.id}`,{method:'POST',body:JSON.stringify({answer:$('answer').value})});$('feedback').textContent=d.message;$('feedback').className=d.correct?'success':'error';$('original').textContent=`Оригинал: ${d.original}`;$('original').hidden=false;$('translation').textContent=`Перевод: ${exercise.translation}`;$('translation').hidden=false;$('add-selection').hidden=false;$('next').hidden=false}catch(e){$('feedback').textContent=e.message;$('feedback').className='error'}};
+    $('add-selection').onclick=async()=>{const selected=window.getSelection().toString().trim();if(!selected)return;try{await request('/api/dictionary',{method:'POST',body:JSON.stringify({language:exercise.language,word:selected})});$('add-selection').textContent='Добавлено в словарь';window.setTimeout(()=>$('add-selection').textContent='Добавить выделенное слово в словарь',2500)}catch(e){$('feedback').textContent=e.message;$('feedback').className='error'}};
+    $('next').onclick=next;$('answer').onkeydown=e=>{if(e.key==='Enter')$('check').click()};
+    $('video').addEventListener('click',()=>{$('video').paused?$('video').play().catch(()=>{}):$('video').pause()});
+    $('video').addEventListener('timeupdate',()=>{if(endTime&&$('video').currentTime>=endTime){$('video').pause();$('video').currentTime=seconds(exercise.time.split(' - ')[0])}});
+    $('replay').onclick=()=>{const [start,end]=exercise.time.split(' - ');endTime=seconds(end)+.3;$('video').currentTime=seconds(start);$('video').play().catch(()=>{})};
+    $('slow').onclick=()=>{slow=!slow;$('video').playbackRate=slow?.7:1;$('slow').textContent=`Скорость: ${slow?'.7x':'1x'}`};
+  </script>
+  <script src="/theme.js?v=6"></script>
+</body>
+</html>

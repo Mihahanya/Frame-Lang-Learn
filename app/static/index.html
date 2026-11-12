@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Real Language Learner</title>
+  <link rel="stylesheet" href="/theme.css?v=6">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: .6rem .75rem; color: #202124; }
+    h1 { margin: .25rem 0 .15rem; font-size: 1.5rem; } h2 { margin: 0 0 .3rem; font-size: 1.05rem; }
+    section { border: 1px solid #ddd; border-radius: 10px; padding: .55rem .8rem; margin: .5rem 0; }
+    label { display: block; margin: .3rem 0 .15rem; font-weight: 600; } input, select, textarea, button { font: inherit; padding: .35rem .5rem; }
+    input, select, textarea { box-sizing: border-box; } textarea { min-height: 110px; }
+    .count-row { display: grid; grid-template-columns: 1fr 5.5rem auto; gap: .45rem; align-items: center; margin: .35rem 0; }
+    .count-row label { margin: 0; } .count-row input { width: 5.5rem; } .count-row .estimate { white-space: nowrap; font-size: .9rem; }
+    button { cursor: pointer; margin-top: .35rem; } #words { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .word { background: #edf2ff; border: 1px solid #b9c7ff; border-radius: 7px; padding: .4rem .6rem; cursor: pointer; }
+    .success { color: #167447; } .error { color: #b42318; } .muted { color: #666; }
+    .controls { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .controls button { margin-top: .4rem; }
+    .nav-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin: .6rem 0; }
+    .nav-cards a { display: grid; gap: .15rem; padding: .6rem .7rem; border: 1px solid #d8def2; border-radius: 9px; background: #f7f8ff; color: #202124; text-decoration: none; }
+    .nav-cards a:hover { background: #edf2ff; } .nav-cards small { color: #666; }
+    .search-row { display: flex; gap: .45rem; align-items: flex-start; flex-wrap: wrap; }
+    .search-row textarea { flex: 1 1 28rem; min-height: 4.5rem; }
+    #search-keywords { width: 100%; min-height: 7rem; resize: vertical; }
+    .search-keywords-panel { margin: .45rem 0; }
+    .search-keywords-panel summary { cursor: pointer; font-weight: 600; }
+    .search-training { display: grid; gap: .35rem; margin-top: .6rem; padding-top: .5rem; border-top: 1px solid #d8def2; }
+    .search-training .count-row { margin: 0; }
+    .search-results { display: grid; gap: .4rem; margin-top: .55rem; }
+    .search-result { padding: .45rem .6rem; border: 1px solid #d8def2; border-radius: 8px; }
+    .search-result p { margin: .15rem 0; }
+    @media (max-width: 520px) { .nav-cards { grid-template-columns: 1fr; } .count-row { grid-template-columns: 1fr 5rem auto; } }
+  </style>
+</head>
+<body>
+  <div class="theme-bar"><label>Тема <select id="theme"><option value="default">Обычная</option><option value="soft">Серая</option><option value="dark">Тёмная</option><option value="creative">Фиолетовая</option><option value="neon">Неоновый сбой</option><option value="terminal">Терминал</option><option value="vaporwave">Вейпорвейв</option><option value="acid">Кислотный плакат</option><option value="cosmic">Космическая аномалия</option></select></label></div>
+  <h1>Real Language Learner</h1>
+  <nav class="nav-cards"><a href="/history"><strong>История заданий</strong><small>Пройденные фразы и результаты</small></a><a href="/dictionary"><strong>Словарь</strong><small>Слова и тренировка лексики</small></a></nav>
+
+  <section>
+    <h2>Тренировка</h2>
+    <label for="language">Язык</label>
+    <select id="language"><option value="de">Deutsch</option><option value="el">Ελληνικά</option></select>
+    <label for="planning-mode">Планирование</label>
+    <select id="planning-mode"><option value="count">По количеству заданий</option><option value="duration">По длительности</option></select>
+    <div id="count-settings">
+      <div class="count-row"><label for="listening-count">Аудирование</label><input id="listening-count" autocomplete="off" type="number" min="0" max="20" value="3"><span id="listening-estimate" class="estimate muted">~5 мин.</span></div>
+      <div class="count-row"><label for="listening-length">Длина фраз</label><select id="listening-length"><option value="short" selected>Короткие</option><option value="medium">Средние</option><option value="long">Длинные</option></select><span class="estimate muted">средние по умолчанию</span></div>
+      <div class="count-row"><label for="translation-count">Перевод</label><input id="translation-count" autocomplete="off" type="number" min="0" max="20" value="3"><span id="translation-estimate" class="estimate muted">~5 мин.</span></div>
+    </div>
+    <div id="duration-settings" hidden>
+      <div class="count-row"><label for="duration">Длительность</label><select id="duration"><option value="10">10 минут</option><option value="15">15 минут</option><option value="30">30 минут</option><option value="45">45 минут</option><option value="60">1 час</option></select><span class="estimate muted">всего</span></div>
+      <label for="listening-share">Доля аудирования: <output id="share-value">50%</output></label>
+      <input id="listening-share" type="range" min="0" max="100" step="10" value="50">
+      <p id="calculated-counts" class="muted"></p>
+    </div>
+    <button id="start">Начать тренировку</button>
+    <p id="total-estimate" class="muted">Всего примерно ~12 минут</p>
+  </section>
+
+  <section>
+    <h2>Материалы</h2>
+    <p>Положи материалы в папку выбранного языка, затем нажми кнопку.</p>
+    <button id="import">Просканировать папку языка</button>
+    <p id="import-result"></p>
+  </section>
+
+  <section>
+    <h2>Поиск по теме</h2>
+    <div class="search-row">
+      <textarea id="search-topic" autocomplete="off" placeholder="Например: люди спорят, оправдываются и пытаются доказать свою правоту"></textarea>
+      <button id="adapt-search" type="button">Адаптировать к поиску</button>
+    </div>
+    <div class="search-keywords-panel">
+      <label for="search-keywords">Леммы и устойчивые выражения через запятую</label>
+      <textarea id="search-keywords" autocomplete="off" placeholder="streiten, rechtfertigen, beweisen"></textarea>
+    </div>
+    <button id="search" type="button">Найти фразы</button>
+    <p id="search-status" class="muted"></p>
+    <div id="search-results" class="search-results"></div>
+    <div class="search-training">
+      <strong>Тренировка по найденным фразам</strong>
+      <label for="search-planning-mode">Планирование</label>
+      <select id="search-planning-mode"><option value="count">По количеству заданий</option><option value="duration">По длительности</option></select>
+      <div id="search-count-settings">
+      <div class="count-row"><label for="search-listening-count">Аудирование</label><input id="search-listening-count" autocomplete="off" type="number" min="0" max="20" value="3"><span class="estimate muted">заданий</span></div>
+      <div class="count-row"><label for="search-listening-length">Длина фраз</label><select id="search-listening-length"><option value="short">Короткие</option><option value="medium" selected>Средние</option><option value="long">Длинные</option></select><span class="estimate muted">средние</span></div>
+      <div class="count-row"><label for="search-translation-count">Перевод</label><input id="search-translation-count" autocomplete="off" type="number" min="0" max="20" value="3"><span class="estimate muted">заданий</span></div>
+      </div>
+      <div id="search-duration-settings" hidden>
+        <div class="count-row"><label for="search-duration">Длительность</label><select id="search-duration"><option value="10">10 минут</option><option value="15">15 минут</option><option value="30">30 минут</option><option value="45">45 минут</option><option value="60">1 час</option></select><span class="estimate muted">всего</span></div>
+        <label for="search-listening-share">Доля аудирования: <output id="search-share-value">50%</output></label>
+        <input id="search-listening-share" type="range" min="0" max="100" step="10" value="50">
+        <p id="search-calculated-counts" class="muted"></p>
+      </div>
+      <button id="start-search-training" type="button" disabled>Начать тренировку по результатам</button>
+    </div>
+  </section>
+
+  <section id="exercise" hidden>
+    <h2>Восстанови фразу</h2>
+    <p id="source" class="muted"></p>
+    <video id="video" controls width="100%" hidden></video>
+    <div class="controls">
+      <button id="replay" type="button">Повторить фрагмент</button>
+      <button id="slow" type="button">Скорость: 1x</button>
+    </div>
+    <div id="words"></div>
+    <input id="answer" placeholder="Собери фразу или введи её здесь">
+    <button id="check">Проверить</button>
+    <button id="next">Следующая</button>
+    <p id="feedback"></p>
+    <p id="original" class="success" hidden></p>
+  </section>
+
+  <script>
+    let sessionId = null;
+    let exerciseId = null;
+    let phraseId = null;
+    let exerciseEnd = 0;
+    let slowMode = false;
+    let searchPhraseIds = [];
+    const $ = (id) => document.getElementById(id);
+    let estimates = {listening: 3.5, translation: 1.5};
+    function selectedCounts() {
+      if ($('planning-mode').value === 'count') {
+        return {
+          listening: Number($('listening-count').value) || 0,
+          translation: Number($('translation-count').value) || 0
+        };
+      }
+      const minutes = Number($('duration').value);
+      const listeningMinutes = minutes * Number($('listening-share').value) / 100;
+      const translationMinutes = minutes - listeningMinutes;
+      return {
+        listening: Math.max(0, Math.round(listeningMinutes / estimates.listening)),
+        translation: Math.max(0, Math.round(translationMinutes / estimates.translation))
+      };
+    }
+    function updateEstimate() {
+      const counts = selectedCounts();
+      const listening = counts.listening * estimates.listening;
+      const translation = counts.translation * estimates.translation;
+      const durationMode = $('planning-mode').value === 'duration';
+      $('count-settings').hidden = durationMode;
+      $('duration-settings').hidden = !durationMode;
+      $('share-value').textContent = `${$('listening-share').value}%`;
+      $('listening-estimate').textContent = `(~${Math.max(1, Math.round(listening))} мин.)`;
+      $('translation-estimate').textContent = `(~${Math.max(1, Math.round(translation))} мин.)`;
+      $('calculated-counts').textContent = `Получится примерно: ${counts.listening} аудирований и ${counts.translation} переводов.`;
+      $('total-estimate').textContent = durationMode
+        ? `Всего примерно ${$('duration').value} минут`
+        : `Всего примерно ~${Math.max(1, Math.round(listening + translation))} минут`;
+    }
+    async function loadEstimates() {
+      try { estimates = await request(`/api/training-estimate?language=${$('language').value}`); }
+      catch (_) { estimates = {listening: 3.5, translation: 1.5}; }
+      updateEstimate();
+      updateSearchTrainingEstimate();
+    }
+
+    function searchCounts() {
+      if ($('search-planning-mode').value === 'count') {
+        return {
+          listening: Number($('search-listening-count').value) || 0,
+          translation: Number($('search-translation-count').value) || 0
+        };
+      }
+      const minutes = Number($('search-duration').value);
+      const listeningMinutes = minutes * Number($('search-listening-share').value) / 100;
+      return {
+        listening: Math.max(0, Math.round(listeningMinutes / estimates.listening)),
+        translation: Math.max(0, Math.round((minutes - listeningMinutes) / estimates.translation))
+      };
+    }
+
+    function updateSearchTrainingEstimate() {
+      const durationMode = $('search-planning-mode').value === 'duration';
+      $('search-count-settings').hidden = durationMode;
+      $('search-duration-settings').hidden = !durationMode;
+      $('search-share-value').textContent = `${$('search-listening-share').value}%`;
+      const counts = searchCounts();
+      $('search-calculated-counts').textContent =
+        `Получится примерно: ${counts.listening} аудирований и ${counts.translation} переводов.`;
+    }
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {headers: {'Content-Type': 'application/json'}, ...options});
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await response.json() : {detail: await response.text()};
+      if (!response.ok) throw new Error(data.detail || 'Ошибка запроса');
+      return data;
+    }
+
+    async function loadExercise() {
+      const suffix = phraseId ? `?exclude_phrase_id=${phraseId}` : '';
+      const exercise = await request(`/api/sessions/${sessionId}/exercise${suffix}`);
+      exerciseId = exercise.id;
+      phraseId = exercise.phrase_id;
+      $('exercise').hidden = false;
+      $('source').textContent = `${exercise.source_title} · ${exercise.time}`;
+      $('video').hidden = !exercise.video_path;
+      if (exercise.video_path) {
+        $('video').src = exercise.video_path;
+        const [start, end] = exercise.time.split(' - ');
+        exerciseEnd = timeToSeconds(end);
+        $('video').onloadedmetadata = () => {
+          $('video').currentTime = Math.max(0, timeToSeconds(start) - 0.5);
+          $('video').playbackRate = slowMode ? 0.7 : 1;
+          $('video').play().catch(() => {});
+        };
+      }
+      $('answer').value = '';
+      $('feedback').textContent = '';
+      $('feedback').className = '';
+      $('original').hidden = true;
+      $('original').textContent = '';
+      $('words').innerHTML = '';
+      exercise.words.forEach((word) => {
+        const element = document.createElement('button');
+        element.className = 'word';
+        element.textContent = word;
+        element.onclick = () => $('answer').value += ($('answer').value ? ' ' : '') + word;
+        $('words').appendChild(element);
+      });
+    }
+
+    $('start').onclick = async () => {
+      try {
+        const session = await request('/api/sessions', {
+          method: 'POST',
+          body: JSON.stringify({
+            language: $('language').value,
+            listening_count: selectedCounts().listening,
+            translation_count: selectedCounts().translation,
+            listening_length: $('listening-length').value
+          })
+        });
+        window.location.href = `/training?session=${session.id}`;
+      } catch (error) { alert(error.message); }
+    };
+    $('language').onchange = loadEstimates;
+    $('planning-mode').onchange = updateEstimate;
+    $('duration').oninput = updateEstimate;
+    $('listening-share').oninput = updateEstimate;
+    $('listening-count').oninput = updateEstimate;
+    $('translation-count').oninput = updateEstimate;
+    loadEstimates();
+
+    function timeToSeconds(value) {
+      const [hours, minutes, seconds] = value.split(':').map(Number);
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    $('import').onclick = async () => {
+      try {
+        const result = await request('/api/media/scan', {
+          method: 'POST',
+          body: JSON.stringify({language: $('language').value})
+        });
+        $('import-result').textContent =
+          `Папка: ${result.folder}. XML/SRT: ${result.subtitle_files}, ` +
+          `с видео: ${result.matched_videos}, новых фраз: ${result.imported}, ` +
+          `удалено фраз: ${result.deleted_phrases || 0}. ` +
+          `Всего фраз: ${result.total_phrases}, слов: ${result.total_words}, ` +
+          `уникальных слов: ${result.unique_words}`;
+        $('import-result').className = result.matched_videos ? 'success' : 'error';
+      } catch (error) { $('import-result').textContent = error.message; $('import-result').className = 'error'; }
+    };
+
+    $('adapt-search').onclick = async () => {
+      try {
+        const result = await request('/api/search/adapt', {
+          method: 'POST',
+          body: JSON.stringify({language: $('language').value, topic: $('search-topic').value})
+        });
+        $('search-keywords').value = result.keywords.join(', ');
+        $('search-status').textContent = 'Ключевые слова готовы — при необходимости отредактируй их.';
+        $('search-status').className = 'success';
+      } catch (error) {
+        $('search-status').textContent = error.message;
+        $('search-status').className = 'error';
+      }
+    };
+
+    $('search').onclick = async () => {
+      const keywords = $('search-keywords').value
+        .split(',')
+        .map((keyword) => keyword.trim())
+        .filter(Boolean);
+      try {
+        const result = await request('/api/search', {
+          method: 'POST',
+          body: JSON.stringify({language: $('language').value, keywords})
+        });
+        $('search-status').textContent =
+          `Найдено совпадений: ${result.total_count}. Показаны лучшие: ${result.count}.`;
+        $('search-status').className = result.count ? 'success' : 'error';
+        const resultItems = result.results.map((item) => `
+          <div class="search-result">
+            <p><strong>${escapeHtml(item.text)}</strong></p>
+            <p class="muted">${escapeHtml(item.source_title)} · ${escapeHtml(item.time)} · ${item.kind === 'listening' ? 'аудирование' : 'перевод'}</p>
+            <p class="muted">Совпало: ${escapeHtml(item.matched_keywords.join(', '))}</p>
+            ${item.exercise_id ? `<a href="/training?exercise=${item.exercise_id}">Открыть упражнение</a>` : ''}
+          </div>`).join('');
+        $('search-results').innerHTML = resultItems
+          ? `<details open><summary>Найденные фразы (${result.count})</summary>${resultItems}</details>`
+          : '';
+        searchPhraseIds = result.results.map((item) => item.phrase_id);
+        $('start-search-training').disabled = !searchPhraseIds.length;
+      } catch (error) {
+        $('search-status').textContent = error.message;
+        $('search-status').className = 'error';
+        $('search-results').innerHTML = '';
+        searchPhraseIds = [];
+        $('start-search-training').disabled = true;
+      }
+    };
+
+    $('start-search-training').onclick = async () => {
+      try {
+        const counts = searchCounts();
+        const session = await request('/api/search/sessions', {
+          method: 'POST',
+          body: JSON.stringify({
+            language: $('language').value,
+            phrase_ids: searchPhraseIds,
+            listening_count: counts.listening,
+            translation_count: counts.translation,
+            listening_length: $('search-listening-length').value
+          })
+        });
+        window.location.href = `/training?session=${session.id}`;
+      } catch (error) { alert(error.message); }
+    };
+
+    ['search-planning-mode', 'search-duration', 'search-listening-share',
+      'search-listening-count', 'search-translation-count', 'search-listening-length']
+      .forEach((id) => $(id).addEventListener('input', updateSearchTrainingEstimate));
+    $('search-planning-mode').addEventListener('change', updateSearchTrainingEstimate);
+    updateSearchTrainingEstimate();
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[character]));
+    }
+
+    $('check').onclick = async () => {
+      try {
+        const result = await request(`/api/exercises/${exerciseId}/attempt`, {
+          method: 'POST', body: JSON.stringify({answer: $('answer').value})
+        });
+        $('feedback').textContent = result.correct ? result.message : `${result.message} Правильный ответ: ${result.answer}`;
+        $('feedback').className = result.correct ? 'success' : 'error';
+        $('original').textContent = `Оригинал: ${result.answer}`;
+        $('original').hidden = false;
+      } catch (error) { $('feedback').textContent = error.message; $('feedback').className = 'error'; }
+    };
+
+    $('next').onclick = () => loadExercise().catch((error) => alert(error.message));
+
+    $('video').addEventListener('timeupdate', () => {
+      if (exerciseEnd && $('video').currentTime >= exerciseEnd) $('video').pause();
+    });
+
+    $('replay').onclick = () => {
+      if (!$('video').src) return;
+      const [start] = $('source').textContent.split(' · ').pop().split(' - ');
+      $('video').currentTime = Math.max(0, timeToSeconds(start) - 0.5);
+      $('video').play().catch(() => {});
+    };
+
+    $('slow').onclick = () => {
+      slowMode = !slowMode;
+      $('video').playbackRate = slowMode ? 0.7 : 1;
+      $('slow').textContent = `Скорость: ${slowMode ? '0.7x' : '1x'}`;
+    };
+  </script>
+  <script src="/theme.js?v=5"></script>
+</body>
+</html>
